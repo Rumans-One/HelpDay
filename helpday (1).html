@@ -1,0 +1,1987 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Подмога — платформа краткосрочных заданий</title>
+  <meta name="description"
+    content="Подмога — находите помощников для переезда, ремонта, уборки, доставки и других краткосрочных задач рядом с вами, либо зарабатывайте, выполняя чужие.">
+  <meta name="theme-color" content="#0e1118">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Подмога — платформа краткосрочных заданий">
+  <meta property="og:description"
+    content="Разместите задание или откликнитесь на чужое: переезд, ремонт, уборка, доставка, IT и многое другое.">
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e1118'/%3E%3Cpath d='M20 34l9 9 15-19' stroke='%232ecc71' stroke-width='7' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+  <div class="loader-overlay" id="loader">
+    <div class="spinner"></div>
+  </div>
+
+  <div class="toast" id="toast">
+    <div class="t-dot"></div><span id="toast-msg"></span>
+  </div>
+
+  <div class="screen active" id="screen-auth">
+    <div class="auth-box">
+      <div class="auth-brand">
+        <div class="auth-brand-name">
+          <div class="wdot"></div>Подмога
+        </div>
+        <div class="auth-brand-sub" data-ru="Платформа краткосрочных заданий" data-en="Short-term task marketplace">
+          Платформа краткосрочных заданий</div>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-l" onclick="switchTab('l')" data-ru="Войти"
+          data-en="Sign In">Войти</button>
+        <button class="auth-tab" id="tab-r" onclick="switchTab('r')" data-ru="Регистрация"
+          data-en="Register">Регистрация</button>
+      </div>
+
+      <div id="form-l" class="form-stack">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="l-email" placeholder="you@example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-ru="Пароль" data-en="Password">Пароль</label>
+          <input type="password" id="l-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <div class="form-err" id="l-err"></div>
+        <button class="btn btn-green btn-full" id="btn-login" onclick="doLogin()">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+            <polyline points="10 17 15 12 10 7" />
+            <line x1="15" y1="12" x2="3" y2="12" />
+          </svg>
+          <span data-ru="Войти в аккаунт" data-en="Sign In">Войти в аккаунт</span>
+        </button>
+        <div class="divider"><span data-ru="или" data-en="or">или</span></div>
+        <button class="btn btn-ghost btn-full" onclick="guestMode()">
+          <span data-ru="Просмотр без регистрации" data-en="Browse as guest">Просмотр без регистрации</span>
+        </button>
+      </div>
+
+      <!-- Register -->
+      <div id="form-r" class="form-stack" style="display:none;">
+        <div class="form-group">
+          <label class="form-label" data-ru="Имя" data-en="Name">Имя</label>
+          <input type="text" id="r-name" placeholder="Иван Петров">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="r-email" placeholder="you@example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-ru="Город" data-en="City">Город</label>
+          <input type="text" id="r-city" placeholder="Москва">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-ru="Пароль (мин. 6 символов)" data-en="Password (min 6 chars)">Пароль (мин. 6
+            символов)</label>
+          <input type="password" id="r-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doRegister()">
+        </div>
+        <div class="form-err" id="r-err"></div>
+        <button class="btn btn-green btn-full" id="btn-reg" onclick="doRegister()">
+          <span data-ru="Создать аккаунт" data-en="Create account">Создать аккаунт</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ HOME ═══════════ -->
+  <div class="screen" id="screen-home">
+    <div class="topbar">
+      <div class="wordmark">
+        <div class="wdot"></div>Подмога
+      </div>
+      <div class="topbar-right">
+        <div class="lang-sw"><button class="lang-btn active" onclick="setLang('ru')">RU</button><button class="lang-btn"
+            onclick="setLang('en')">EN</button></div>
+      </div>
+    </div>
+    <div class="user-tag-bar" id="home-user-tag"></div>
+    <div class="page">
+      <div class="onboard-card" id="onboard-card" style="display:none;">
+        <button class="onboard-close" onclick="dismissOnboarding()">×</button>
+        <div class="onboard-title" data-ru="Как это работает" data-en="How it works">Как это работает</div>
+        <div class="onboard-steps">
+          <div class="onboard-step"><span class="onboard-num">1</span><span data-ru="Найдите задание рядом"
+              data-en="Find a task nearby">Найдите задание рядом</span></div>
+          <div class="onboard-step"><span class="onboard-num">2</span><span data-ru="Откликнитесь с ценой и сообщением"
+              data-en="Apply with your price and message">Откликнитесь с ценой и сообщением</span></div>
+          <div class="onboard-step"><span class="onboard-num">3</span><span data-ru="Договоритесь в чате и выполните"
+              data-en="Agree in chat and get it done">Договоритесь в чате и выполните</span></div>
+        </div>
+      </div>
+      <div class="search-sort-row">
+        <div class="input-icon-wrap">
+          <svg class="input-icon-abs" width="15" height="15" fill="none" stroke="var(--muted)" stroke-width="1.8"
+            viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <input type="text" id="search-in" placeholder="Поиск по заданиям..." oninput="renderHome()">
+        </div>
+        <select class="sort-select" id="sort-sel" onchange="onSortChange()">
+          <option value="" disabled selected data-ru="Сортировка" data-en="Sort">Сортировка</option>
+          <option value="new" data-ru="Сначала новые" data-en="Newest first">Сначала новые</option>
+          <option value="near" data-ru="Рядом со мной" data-en="Nearest first">Рядом со мной</option>
+          <option value="price_up" data-ru="Цена: по возрастанию" data-en="Price: low to high">Цена: по возрастанию
+          </option>
+          <option value="price_down" data-ru="Цена: по убыванию" data-en="Price: high to low">Цена: по убыванию</option>
+        </select>
+      </div>
+      <div class="filter-scroll" id="cats">
+        <button class="chip active" data-cat="all" onclick="setCat(this,'all')"><span data-ru="Все"
+            data-en="All">Все</span></button>
+        <button class="chip chip-1" data-cat="moving" onclick="setCat(this,'moving')"><svg width="11" height="11"
+            style="color:var(--cat-moving)" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M21 8h-3.5l-2-4H8.5l-2 4H3v3h1v9h16v-9h1V8zM9.7 6h4.6l1 2H8.7l1-2zM6 20v-7h12v7H6z" />
+          </svg><span data-ru="Переезд" data-en="Moving">Переезд</span></button>
+        <button class="chip chip-2" data-cat="repair" onclick="setCat(this,'repair')"><svg width="11" height="11"
+            style="color:var(--cat-repair)" fill="currentColor" viewBox="0 0 24 24">
+            <path
+              d="M14.7 6.3a4 4 0 0 0-5.4 4.6l-6.6 6.6 2.8 2.8 6.6-6.6a4 4 0 0 0 4.6-5.4l-2.5 2.5-1.5-1.5 2.5-2.5z" />
+          </svg><span data-ru="Ремонт" data-en="Repair">Ремонт</span></button>
+        <button class="chip chip-3" data-cat="cleaning" onclick="setCat(this,'cleaning')"><svg width="11" height="11"
+            style="color:var(--cat-cleaning)" fill="currentColor" viewBox="0 0 24 24">
+            <path
+              d="M12 2c.3 3.6 1.1 6.2 2.4 7.6C15.8 10.9 18.4 11.7 22 12c-3.6.3-6.2 1.1-7.6 2.4C13.1 15.8 12.3 18.4 12 22c-.3-3.6-1.1-6.2-2.4-7.6C8.2 13.1 5.6 12.3 2 12c3.6-.3 6.2-1.1 7.6-2.4C10.9 8.2 11.7 5.6 12 2z" />
+          </svg><span data-ru="Уборка" data-en="Cleaning">Уборка</span></button>
+        <button class="chip chip-4" data-cat="delivery" onclick="setCat(this,'delivery')"><svg width="11" height="11"
+            style="color:var(--cat-delivery)" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M3 6h11v9H3z" />
+            <path d="M14 10h4l3 3v2h-7z" />
+            <circle cx="7" cy="18" r="1.6" />
+            <circle cx="17.5" cy="18" r="1.6" />
+          </svg><span data-ru="Доставка" data-en="Delivery">Доставка</span></button>
+        <button class="chip chip-5" data-cat="it" onclick="setCat(this,'it')"><svg width="11" height="11" fill="none"
+            style="color:var(--cat-it)"
+            stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <path d="m9 8-4 4 4 4M15 8l4 4-4 4" />
+          </svg><span>IT</span></button>
+        <button class="chip chip-6" data-cat="other" onclick="setCat(this,'other')"><svg width="11" height="11"
+            style="color:var(--cat-other)" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="5" cy="12" r="1.6" />
+            <circle cx="12" cy="12" r="1.6" />
+            <circle cx="19" cy="12" r="1.6" />
+          </svg><span data-ru="Другое" data-en="Other">Другое</span></button>
+      </div>
+      <div class="task-list" id="home-list"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════ MY ═══════════ -->
+  <div class="screen" id="screen-my">
+    <div class="topbar">
+      <div class="wordmark">
+        <div class="wdot"></div>Подмога
+      </div>
+      <div class="topbar-right">
+        <div class="lang-sw"><button class="lang-btn active" onclick="setLang('ru')">RU</button><button class="lang-btn"
+            onclick="setLang('en')">EN</button></div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-title" data-ru="Мои" data-en="Mine">Мои</div>
+      <div class="auth-tabs" style="margin-bottom:16px;">
+        <button class="auth-tab active" id="my-tab-tasks" onclick="switchMyTab('tasks')" data-ru="Мои задания" data-en="My tasks">Мои задания</button>
+        <button class="auth-tab" id="my-tab-fav" onclick="switchMyTab('fav')" data-ru="Избранное" data-en="Favorites">Избранное</button>
+      </div>
+      <div class="task-list" id="my-list"></div>
+      <div class="task-list" id="fav-list" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════ CREATE ═══════════ -->
+  <div class="screen" id="screen-create">
+    <div class="topbar">
+      <div class="wordmark">
+        <div class="wdot"></div>Подмога
+      </div>
+      <div class="topbar-right">
+        <div class="lang-sw"><button class="lang-btn active" onclick="setLang('ru')">RU</button><button class="lang-btn"
+            onclick="setLang('en')">EN</button></div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-title" data-ru="Разместить задание" data-en="Post a Task">Разместить задание</div>
+      <div class="form-stack">
+        <div class="form-group">
+          <label class="form-label" data-ru="Название задания" data-en="Task title">Название задания</label>
+          <input type="text" id="c-title" placeholder="Кратко опишите задачу...">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-ru="Описание" data-en="Description">Описание</label>
+          <textarea id="c-desc" placeholder="Подробности: что нужно сделать, особые условия..."></textarea>
+        </div>
+        <div class="form-row2">
+          <div class="form-group">
+            <label class="form-label" data-ru="Категория" data-en="Category">Категория</label>
+            <select id="c-cat">
+              <option value="moving" data-ru="Переезд" data-en="Moving">Переезд</option>
+              <option value="repair" data-ru="Ремонт" data-en="Repair">Ремонт</option>
+              <option value="cleaning" data-ru="Уборка" data-en="Cleaning">Уборка</option>
+              <option value="delivery" data-ru="Доставка" data-en="Delivery">Доставка</option>
+              <option value="it">IT</option>
+              <option value="other" data-ru="Другое" data-en="Other">Другое</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-ru="Город" data-en="City">Город</label>
+            <input type="text" id="c-city" placeholder="Москва">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <button type="button" class="btn btn-ghost btn-full" id="btn-toggle-map" onclick="toggleLocationPicker()">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span data-ru="Добавить точное место на карте" data-en="Add exact location on map">Добавить точное место на
+              карте</span>
+          </button>
+          <div id="create-map-wrap" style="display:none;margin-top:12px;">
+            <div class="map-actions">
+              <button type="button" class="btn btn-ghost" onclick="locateMeOnCreateMap()">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                </svg>
+                <span data-ru="Определить моё местоположение" data-en="Use my location">Определить моё
+                  местоположение</span>
+              </button>
+            </div>
+            <div class="map-box" id="create-map"></div>
+            <input type="text" id="c-address" placeholder="Улица, дом (необязательно)" style="margin-top:10px;">
+            <div class="map-hint"
+              data-ru="Клик по карте — поставить или передвинуть метку. Точный адрес увидят только вы и исполнитель, которого вы примете."
+              data-en="Click the map to place or move the pin. The exact address is only shown to you and the executor you accept.">
+              Клик по карте — поставить или передвинуть метку. Точный адрес увидят только вы и исполнитель, которого вы
+              примете.</div>
+          </div>
+        </div>
+
+        <div class="form-row2">
+          <div class="form-group">
+            <label class="form-label" data-ru="Бюджет, ₽" data-en="Budget, ₽">Бюджет, ₽</label>
+            <div class="price-wrap"><span class="price-sym">₽</span><input type="number" id="c-price" placeholder="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-ru="Дата выполнения" data-en="Due date">Дата выполнения</label>
+            <input type="date" id="c-date">
+          </div>
+        </div>
+        <div class="form-err" id="c-err"></div>
+        <button class="btn btn-green btn-full" id="btn-create" onclick="submitTask()" style="margin-top:4px;">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span data-ru="Опубликовать задание" data-en="Post Task">Опубликовать задание</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ CHATS ═══════════ -->
+  <div class="screen" id="screen-chats">
+    <div class="topbar">
+      <div class="wordmark">
+        <div class="wdot"></div>Подмога
+      </div>
+      <div class="topbar-right">
+        <div class="lang-sw"><button class="lang-btn active" onclick="setLang('ru')">RU</button><button class="lang-btn"
+            onclick="setLang('en')">EN</button></div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-title" data-ru="Чаты" data-en="Chats">Чаты</div>
+      <div class="task-list" id="chats-list"></div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="screen" id="screen-profile">
+    <div class="topbar">
+      <div class="wordmark">
+        <div class="wdot"></div>Подмога
+      </div>
+      <div class="topbar-right">
+        <div class="lang-sw"><button class="lang-btn active" onclick="setLang('ru')">RU</button><button class="lang-btn"
+            onclick="setLang('en')">EN</button></div>
+      </div>
+    </div>
+    <div class="profile-hero">
+      <div class="avatar" id="p-av">—</div>
+      <div>
+        <div class="pname" id="p-name">—</div>
+        <div class="pcity" id="p-city">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          —
+        </div>
+        <div class="stars" id="p-stars">
+          <span class="star">★</span><span class="star">★</span><span class="star">★</span><span
+            class="star">★</span><span class="star e">★</span>
+          <span class="star-val" id="p-rating-val">0.0</span>
+        </div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="pstats">
+        <div class="pstat">
+          <div class="pstat-val" id="p-cnt">0</div>
+          <div class="pstat-lbl" data-ru="Заданий" data-en="Tasks">Заданий</div>
+        </div>
+        <div class="pstat">
+          <div class="pstat-val" id="p-rating">0.0</div>
+          <div class="pstat-lbl" data-ru="Рейтинг" data-en="Rating">Рейтинг</div>
+        </div>
+        <div class="pstat">
+          <div class="pstat-val" id="p-done">0</div>
+          <div class="pstat-lbl" data-ru="Выполнено" data-en="Done">Выполнено</div>
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-title" data-ru="Личные данные" data-en="Account info">Личные данные</div>
+        <div class="info-row"><span class="info-k">Email</span><span class="info-v" id="p-email">—</span></div>
+        <div class="info-row"><span class="info-k" data-ru="Телефон" data-en="Phone">Телефон</span><span class="info-v"
+            id="p-phone">—</span></div>
+        <div class="info-row"><span class="info-k" data-ru="Город" data-en="City">Город</span><span class="info-v"
+            id="p-city2">—</span></div>
+        <div class="info-row"><span class="info-k" data-ru="Участник с" data-en="Member since">Участник с</span><span
+            class="info-v" id="p-since">—</span></div>
+      </div>
+      <div class="info-card" id="p-reviews-card">
+        <div class="info-card-title" data-ru="Отзывы" data-en="Reviews">Отзывы</div>
+        <div id="p-reviews-list" style="padding:14px 16px;"></div>
+      </div>
+      <button class="btn btn-green btn-full" style="margin-bottom:10px;" onclick="openEditModal()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg>
+        <span data-ru="Редактировать профиль" data-en="Edit Profile">Редактировать профиль</span>
+      </button>
+      <button class="btn btn-ghost btn-full" style="margin-top:4px;" onclick="doLogout()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+        <span data-ru="Выйти из аккаунта" data-en="Sign Out">Выйти из аккаунта</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════ MODAL: EDIT PROFILE ═══════════ -->
+  <div class="modal-overlay" id="modal-edit" onclick="closeEditModal(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" data-ru="Редактировать профиль" data-en="Edit Profile">Редактировать профиль</div>
+        <button class="modal-close" onclick="closeEditModal()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="avatar-picker">
+        <div class="avatar-lg" id="edit-av-preview">—</div>
+        <div class="avatar-hint">
+          <b data-ru="Аватар" data-en="Avatar">Аватар</b><br>
+          <span data-ru="Генерируется автоматически из имени" data-en="Auto-generated from your name">Генерируется
+            автоматически из имени</span>
+        </div>
+      </div>
+
+      <div class="form-stack">
+        <div class="form-group">
+          <label class="form-label" data-ru="Имя" data-en="Name">Имя</label>
+          <input type="text" id="edit-name" placeholder="Иван Петров" oninput="updateAvatarPreview()">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-ru="Город" data-en="City">Город</label>
+          <input type="text" id="edit-city" placeholder="Москва">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-ru="Телефон" data-en="Phone">Телефон</label>
+          <input type="tel" id="edit-phone" placeholder="+7 900 000-00-00">
+        </div>
+        <div class="form-err" id="edit-err"></div>
+        <button class="btn btn-green btn-full" id="btn-save-profile" onclick="saveProfile()">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span data-ru="Сохранить изменения" data-en="Save Changes">Сохранить изменения</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ TASK DETAIL ═══════════ -->
+  <div class="screen" id="screen-detail">
+    <div class="topbar">
+      <button onclick="goBack()"
+        style="background:none;border:none;cursor:pointer;color:var(--sub);display:flex;align-items:center;gap:6px;font-size:13px;font-family:'Inter',sans-serif;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        <span data-ru="Назад" data-en="Back">Назад</span>
+      </button>
+      <div class="wordmark">
+        <div class="wdot"></div>Подмога
+      </div>
+      <div style="width:60px"></div>
+    </div>
+
+    <div class="detail-hero" id="detail-hero">
+      <div class="detail-price" id="d-price">—</div>
+      <div class="detail-title" id="d-title">—</div>
+      <div class="detail-meta" id="d-meta"></div>
+      <div class="detail-desc" id="d-desc"></div>
+      <div id="d-map-wrap" style="display:none;margin-top:16px;">
+        <div class="map-box" id="d-map"></div>
+        <div class="map-address-line" id="d-address-line" style="display:none;"></div>
+        <div class="map-locked-hint" id="d-locked-hint" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="detail-author" id="detail-author">
+      <div class="author-av" id="d-author-av">—</div>
+      <div>
+        <div class="author-name" id="d-author-name">—</div>
+        <div class="author-label" data-ru="Заказчик" data-en="Customer">Заказчик</div>
+      </div>
+    </div>
+
+    <!-- Кнопка отклика (для не-автора) -->
+    <div id="d-respond-wrap" style="padding:16px 20px;border-bottom:1px solid var(--border);display:none;">
+      <button class="btn btn-green btn-full" id="btn-respond" onclick="openRespondModal()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span data-ru="Откликнуться" data-en="Apply">Откликнуться</span>
+      </button>
+    </div>
+
+    <!-- Кнопка чата + завершения (после принятия отклика) -->
+    <div id="d-chat-wrap"
+      style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:none;gap:10px;flex-direction:column;">
+      <button class="btn btn-green btn-full" id="btn-open-chat" onclick="openChat()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span data-ru="Открыть чат" data-en="Open Chat">Открыть чат</span>
+      </button>
+      <button class="btn btn-ghost btn-full" id="btn-complete" onclick="openReviewModal()" style="margin-top:6px;">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <span data-ru="Отметить выполненным" data-en="Mark as Done">Отметить выполненным</span>
+      </button>
+    </div>
+
+    <!-- Отклики (только для автора задания) -->
+    <div class="resp-section" id="d-responses-wrap" style="display:none;">
+      <div class="resp-title" data-ru="Отклики" data-en="Responses">Отклики</div>
+      <div id="d-responses-list"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════ MODAL: REVIEW ═══════════ -->
+  <div class="modal-overlay" id="modal-review" onclick="closeReviewModal(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" data-ru="Задание выполнено!" data-en="Task Done!">Задание выполнено!</div>
+        <button class="modal-close" onclick="closeReviewModal()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-size:13px;color:var(--sub);margin-bottom:14px;" data-ru="Оцените работу исполнителя"
+          data-en="Rate the executor">Оцените работу исполнителя</div>
+        <div class="star-picker" id="star-picker">
+          <span class="star-pick" data-v="1" onclick="pickStar(1)">★</span>
+          <span class="star-pick" data-v="2" onclick="pickStar(2)">★</span>
+          <span class="star-pick" data-v="3" onclick="pickStar(3)">★</span>
+          <span class="star-pick" data-v="4" onclick="pickStar(4)">★</span>
+          <span class="star-pick" data-v="5" onclick="pickStar(5)">★</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px;" id="star-label">Выберите оценку</div>
+      </div>
+
+      <div class="form-stack">
+        <div class="form-group">
+          <label class="form-label" data-ru="Отзыв (необязательно)" data-en="Review (optional)">Отзыв
+            (необязательно)</label>
+          <textarea id="review-text" placeholder="Расскажите о работе исполнителя..."
+            style="min-height:80px;"></textarea>
+        </div>
+        <div class="form-err" id="review-err"></div>
+        <button class="btn btn-green btn-full" id="btn-submit-review" onclick="submitReview()">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span data-ru="Завершить и отправить отзыв" data-en="Complete & Submit Review">Завершить и отправить
+            отзыв</span>
+        </button>
+        <button class="btn btn-ghost btn-full" onclick="completeWithoutReview()" style="margin-top:6px;">
+          <span data-ru="Завершить без отзыва" data-en="Complete without review">Завершить без отзыва</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ CHAT ═══════════ -->
+  <div class="screen" id="screen-chat">
+    <div class="topbar">
+      <button onclick="closeChat()"
+        style="background:none;border:none;cursor:pointer;color:var(--sub);display:flex;align-items:center;gap:6px;font-size:13px;font-family:'Inter',sans-serif;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        <span data-ru="Назад" data-en="Back">Назад</span>
+      </button>
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="font-size:14px;font-weight:700;" id="chat-title">Чат</div>
+        <div style="font-size:11px;color:var(--muted);" id="chat-subtitle"></div>
+      </div>
+      <div style="width:60px"></div>
+    </div>
+
+    <div class="chat-messages" id="chat-messages">
+      <div style="text-align:center;padding:40px;color:var(--muted)">
+        <div class="spinner" style="margin:0 auto"></div>
+      </div>
+    </div>
+
+    <div class="chat-input-bar">
+      <textarea id="chat-input" placeholder="Сообщение..." rows="1"
+        oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+      <button class="chat-send-btn" onclick="sendMessage()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <line x1="22" y1="2" x2="11" y2="13" />
+          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════ MODAL: RESPOND ═══════════ -->
+  <div class="modal-overlay" id="modal-respond" onclick="closeRespondModal(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" data-ru="Откликнуться на задание" data-en="Apply for Task">Откликнуться на задание
+        </div>
+        <button class="modal-close" onclick="closeRespondModal()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="form-stack">
+        <div class="form-group">
+          <label class="form-label" data-ru="Ваше предложение по цене, ₽" data-en="Your price offer, ₽">Ваше предложение
+            по цене, ₽</label>
+          <div class="price-wrap"><span class="price-sym">₽</span><input type="number" id="resp-price" placeholder="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-ru="Сообщение заказчику" data-en="Message to customer">Сообщение
+            заказчику</label>
+          <textarea id="resp-msg" placeholder="Расскажите о себе, опыте, когда сможете выполнить..."></textarea>
+        </div>
+        <div class="form-err" id="resp-err"></div>
+        <button class="btn btn-green btn-full" id="btn-send-resp" onclick="submitResponse()">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+          <span data-ru="Отправить отклик" data-en="Send Application">Отправить отклик</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ BOTTOM NAV ═══════════ -->
+  <nav class="bnav" id="bnav" style="display:none;">
+    <button class="bnav-item active" id="nav-home" onclick="goTo('home')">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+      <span data-ru="Главная" data-en="Home">Главная</span>
+    </button>
+    <button class="bnav-item" id="nav-my" onclick="goTo('my')">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </svg>
+      <span data-ru="Мои" data-en="Mine">Мои</span>
+    </button>
+    <button class="bnav-center" id="nav-create" onclick="goTo('create')">
+      <div class="bnav-plus">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </div>
+      <span data-ru="Создать" data-en="Post">Создать</span>
+    </button>
+    <button class="bnav-item" id="nav-chats" onclick="goTo('chats')">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+      <span data-ru="Чаты" data-en="Chats">Чаты</span>
+    </button>
+    <button class="bnav-item" id="nav-profile" onclick="goTo('profile')">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+      <span data-ru="Профиль" data-en="Profile">Профиль</span>
+    </button>
+  </nav>
+
+  <script>
+    // ═══════════════════════════════
+    //  SUPABASE INIT
+    // ═══════════════════════════════
+    const SUPA_URL = 'https://mbwljmgwmyjqqefehbth.supabase.co';
+    const SUPA_KEY = 'sb_publishable_pQV1hp1MeWyFaKAEtF_SMg_holr4pZL';
+    const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+    // ═══════════════════════════════
+    //  STATE
+    // ═══════════════════════════════
+    let lang = 'ru';
+    let currentUser = null;
+    let currentProfile = null;
+    let allTasks = [];
+    let favIds = new Set();
+    let catSel = 'all';
+    let isGuest = false;
+    let myLoc = null;
+    let pickedLat = null;
+    let pickedLng = null;
+    let createMap = null;
+    let createMarker = null;
+    let detailMap = null;
+    let detailMarker = null;
+    let detailCircle = null;
+
+    // ═══════════════════════════════
+    //  BOOT
+    // ═══════════════════════════════
+    async function boot() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        currentUser = session.user;
+        await loadProfile();
+        showApp();
+      } else {
+        hideLoader();
+      }
+
+      sb.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          currentUser = session.user;
+          await loadProfile();
+          showApp();
+        }
+        if (event === 'SIGNED_OUT') {
+          currentUser = null; currentProfile = null;
+          allTasks = []; favIds.clear(); isGuest = false;
+          document.getElementById('bnav').style.display = 'none';
+          goTo('auth');
+        }
+      });
+    }
+
+    function showApp() {
+      hideLoader();
+      document.getElementById('bnav').style.display = 'flex';
+      goTo('home');
+    }
+
+    function hideLoader() {
+      document.getElementById('loader').classList.add('hide');
+    }
+
+    // ═══════════════════════════════
+    //  PROFILE
+    // ═══════════════════════════════
+    async function loadProfile() {
+      if (!currentUser) return;
+      const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      currentProfile = data;
+    }
+
+    // ═══════════════════════════════
+    //  LANG
+    // ═══════════════════════════════
+    function setLang(l) {
+      lang = l;
+      document.querySelectorAll('[data-ru]').forEach(el => {
+        if (['OPTION', 'INPUT', 'TEXTAREA'].includes(el.tagName)) return;
+        el.textContent = el.dataset[l] || el.textContent;
+      });
+      document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.textContent === l.toUpperCase()));
+      const si = document.getElementById('search-in');
+      if (si) si.placeholder = l === 'ru' ? 'Поиск по заданиям...' : 'Search tasks...';
+      renderHome(); renderUserTag();
+    }
+
+    // ═══════════════════════════════
+    //  ROUTING
+    // ═══════════════════════════════
+    function goTo(s) {
+      document.querySelectorAll('.screen').forEach(e => e.classList.remove('active'));
+      document.getElementById('screen-' + s).classList.add('active');
+      document.querySelectorAll('.bnav-item,.bnav-center').forEach(e => e.classList.remove('active'));
+      const ni = document.getElementById('nav-' + s);
+      if (ni) ni.classList.add('active');
+      if (s === 'home') loadAndRenderHome();
+      if (s === 'my') loadAndRenderMy();
+      if (s === 'chats') loadAndRenderChats();
+      if (s === 'profile') { renderProfile(); loadAndRenderReviews(); }
+      window.scrollTo(0, 0);
+    }
+
+    // ═══════════════════════════════
+    //  AUTH
+    // ═══════════════════════════════
+    function switchTab(t) {
+      document.getElementById('form-l').style.display = t === 'l' ? 'flex' : 'none';
+      document.getElementById('form-r').style.display = t === 'r' ? 'flex' : 'none';
+      document.getElementById('tab-l').classList.toggle('active', t === 'l');
+      document.getElementById('tab-r').classList.toggle('active', t === 'r');
+      document.getElementById('l-err').textContent = '';
+      document.getElementById('r-err').textContent = '';
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('l-email').value.trim();
+      const pass = document.getElementById('l-pass').value;
+      const errEl = document.getElementById('l-err');
+      const btn = document.getElementById('btn-login');
+      if (!email || !pass) { errEl.textContent = lang === 'ru' ? 'Заполните все поля' : 'Fill in all fields'; return; }
+      btn.disabled = true;
+      btn.querySelector('span').textContent = lang === 'ru' ? 'Вход...' : 'Signing in...';
+      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+      btn.disabled = false;
+      btn.querySelector('span').textContent = lang === 'ru' ? 'Войти в аккаунт' : 'Sign In';
+      if (error) { errEl.textContent = lang === 'ru' ? 'Неверный email или пароль' : 'Invalid email or password'; return; }
+      errEl.textContent = '';
+    }
+
+    async function doRegister() {
+      const name = document.getElementById('r-name').value.trim();
+      const email = document.getElementById('r-email').value.trim();
+      const city = document.getElementById('r-city').value.trim();
+      const pass = document.getElementById('r-pass').value;
+      const errEl = document.getElementById('r-err');
+      const btn = document.getElementById('btn-reg');
+      if (!name || !email || !pass) { errEl.textContent = lang === 'ru' ? 'Заполните все поля' : 'Fill in all fields'; return; }
+      if (pass.length < 6) { errEl.textContent = lang === 'ru' ? 'Пароль минимум 6 символов' : 'Password min 6 chars'; return; }
+      btn.disabled = true;
+      btn.querySelector('span').textContent = lang === 'ru' ? 'Создаём...' : 'Creating...';
+      const { error } = await sb.auth.signUp({
+        email, password: pass,
+        options: { data: { display_name: name, city } }
+      });
+      btn.disabled = false;
+      btn.querySelector('span').textContent = lang === 'ru' ? 'Создать аккаунт' : 'Create account';
+      if (error) { errEl.textContent = error.message; return; }
+
+      // Обновляем профиль с городом и именем
+      await sb.from('profiles').upsert({ id: (await sb.auth.getUser()).data.user?.id, display_name: name, city });
+      errEl.textContent = '';
+      toast(lang === 'ru' ? 'Аккаунт создан' : 'Account created');
+    }
+
+    async function guestMode() {
+      isGuest = true;
+      document.getElementById('bnav').style.display = 'flex';
+      await loadAndRenderHome();
+      goTo('home');
+      toast(lang === 'ru' ? 'Режим просмотра' : 'Browse mode');
+    }
+
+    async function doLogout() {
+      await sb.auth.signOut();
+    }
+
+    // ═══════════════════════════════
+    //  TASKS — LOAD
+    // ═══════════════════════════════
+    async function fetchTasks(filters = {}) {
+      let q = sb.from('tasks').select(`
+    id, title, description, category, city, price, due_date, status, created_at, author_id, lat, lng,
+    profiles ( display_name )
+  `).order('created_at', { ascending: false });
+
+      if (filters.cat && filters.cat !== 'all') q = q.eq('category', filters.cat);
+      if (filters.author_id) q = q.eq('author_id', filters.author_id);
+
+      const { data, error } = await q;
+      if (error) { console.error(error); throw error; }
+      return data || [];
+    }
+
+    async function fetchFavIds() {
+      if (!currentUser) return;
+      const { data, error } = await sb.from('favorites').select('task_id').eq('user_id', currentUser.id);
+      if (error) { console.error(error); throw error; }
+      favIds = new Set((data || []).map(f => f.task_id));
+    }
+
+    // ═══════════════════════════════
+    //  RENDER HELPERS
+    // ═══════════════════════════════
+    const catLabels = {
+      moving: { ru: 'Переезд', en: 'Moving' }, repair: { ru: 'Ремонт', en: 'Repair' },
+      cleaning: { ru: 'Уборка', en: 'Cleaning' }, delivery: { ru: 'Доставка', en: 'Delivery' },
+      it: { ru: 'IT', en: 'IT' }, other: { ru: 'Другое', en: 'Other' }
+    };
+    const statL = {
+      open: { ru: 'Открыто', en: 'Open' }, inprogress: { ru: 'В работе', en: 'In Progress' }, done: { ru: 'Завершено', en: 'Done' }
+    };
+
+    function tierInfo(profile) {
+      const rating = parseFloat(profile?.rating || 0);
+      const done = parseInt(profile?.done_count || 0);
+      if (done >= 15 && rating >= 4.5) return { ru: 'Золото', en: 'Gold', color: 'var(--gold)' };
+      if (done >= 5 && rating >= 4.0) return { ru: 'Серебро', en: 'Silver', color: 'var(--silver)' };
+      return { ru: 'Бронза', en: 'Bronze', color: 'var(--bronze)' };
+    }
+
+    function renderUserTag() {
+      const el = document.getElementById('home-user-tag');
+      if (!el) return;
+      if (!currentUser || isGuest || !currentProfile) { el.innerHTML = ''; return; }
+      const tier = tierInfo(currentProfile);
+      const name = currentProfile?.display_name || currentUser.email?.split('@')[0] || '';
+      el.innerHTML = `<span class="tier-dot" style="background:${tier.color}"></span>${tier[lang]} ${escHtml(name)}`;
+    }
+    const catColors = {
+      moving: 'var(--cat-moving)', repair: 'var(--cat-repair)', cleaning: 'var(--cat-cleaning)',
+      delivery: 'var(--cat-delivery)', it: 'var(--cat-it)', other: 'var(--cat-other)'
+    };
+    const catIcons = {
+      moving: `<path d="M21 8h-3.5l-2-4H8.5l-2 4H3v3h1v9h16v-9h1V8zM9.7 6h4.6l1 2H8.7l1-2zM6 20v-7h12v7H6z"/>`,
+      repair: `<path d="M14.7 6.3a4 4 0 0 0-5.4 4.6l-6.6 6.6 2.8 2.8 6.6-6.6a4 4 0 0 0 4.6-5.4l-2.5 2.5-1.5-1.5 2.5-2.5z"/>`,
+      cleaning: `<path d="M12 2c.3 3.6 1.1 6.2 2.4 7.6C15.8 10.9 18.4 11.7 22 12c-3.6.3-6.2 1.1-7.6 2.4C13.1 15.8 12.3 18.4 12 22c-.3-3.6-1.1-6.2-2.4-7.6C8.2 13.1 5.6 12.3 2 12c3.6-.3 6.2-1.1 7.6-2.4C10.9 8.2 11.7 5.6 12 2z"/>`,
+      delivery: `<path d="M3 6h11v9H3z"/><path d="M14 10h4l3 3v2h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17.5" cy="18" r="1.6"/>`,
+      it: `<path d="m9 8-4 4 4 4M15 8l4 4-4 4"/>`,
+      other: `<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>`
+    };
+    function iPin() { return `<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`; }
+    function iCal() { return `<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`; }
+    function iNear() { return `<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`; }
+    function iStar(on) { return `<svg width="14" height="14" fill="${on ? 'var(--green)' : 'none'}" stroke="${on ? 'var(--green)' : 'var(--muted)'}" stroke-width="1.6" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`; }
+    function iCat(cat) {
+      const path = catIcons[cat] || catIcons.other;
+      const strokeCats = new Set(['it']);
+      const fillMode = strokeCats.has(cat) ? 'none' : 'currentColor';
+      const strokeAttrs = strokeCats.has(cat) ? ' stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' : '';
+      return `<svg width="11" height="11" fill="${fillMode}"${strokeAttrs} viewBox="0 0 24 24">${path}</svg>`;
+    }
+    function catDot(cat) { return `<span class="cat-dot" style="background:${catColors[cat] || catColors.other}"></span>`; }
+
+    function tcard(t, showFav = true) {
+      const f = favIds.has(t.id);
+      const price = t.price ? `₽${Number(t.price).toLocaleString()}` : (lang === 'ru' ? 'Договорная' : 'Negotiable');
+      const date = t.due_date || '';
+      const cat = catLabels[t.category]?.[lang] || t.category || '';
+      const st = statL[t.status]?.[lang] || t.status;
+      const city = t.city || '';
+      const canFav = showFav && currentUser && !isGuest;
+      const dist = (myLoc && t.lat != null && t.lng != null) ? distanceKm(myLoc.lat, myLoc.lng, t.lat, t.lng) : null;
+      const distText = dist != null ? (dist < 1 ? `${Math.round(dist * 1000)} м` : `${dist.toFixed(1)} км`) : '';
+      return `
+  <div class="tcard" onclick="openDetail('${t.id}')">
+    <div class="tcard-top">
+      <div class="tcard-title">${escHtml(t.title)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <div class="tcard-price">${price}</div>
+        ${canFav ? `<button class="fav-btn${f ? ' active' : ''}" onclick="toggleFav('${t.id}',event)">${iStar(f)}</button>` : ''}
+      </div>
+    </div>
+    <div class="tcard-desc">${escHtml(t.description || '')}</div>
+    <div class="tcard-foot">
+      <span class="badge b-${t.status}">${st}</span>
+      ${cat ? `<span class="tcard-cat">${catDot(t.category)}${cat}</span>` : ''}
+      ${distText ? `<span class="tcard-meta">${iNear()} ${distText}</span>` : ''}
+      ${city ? `<span class="tcard-meta">${iPin()} ${escHtml(city)}</span>` : ''}
+      ${date ? `<span class="tcard-meta">${iCal()} ${date}</span>` : ''}
+    </div>
+  </div>`;
+    }
+
+    function emptyState(msg, ctaHtml = '') {
+      return `<div class="empty-state">
+    <div class="empty-icon">
+      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    </div>${msg}
+    ${ctaHtml ? `<div class="empty-cta">${ctaHtml}</div>` : ''}
+  </div>`;
+    }
+
+    function errorState(msg, retryCall) {
+      return `<div class="empty-state is-error">
+    <div class="empty-icon">
+      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>${msg}
+    <div class="empty-cta"><button class="btn btn-ghost" onclick="${retryCall}">${lang === 'ru' ? 'Повторить' : 'Retry'}</button></div>
+  </div>`;
+    }
+
+    function skeletonHTML(n = 3) {
+      return Array.from({ length: n }).map(() => `
+  <div class="skel-card">
+    <div class="skel-line skel-title"></div>
+    <div class="skel-line skel-desc"></div>
+    <div class="skel-line skel-desc short"></div>
+    <div class="skel-foot"><div class="skel-line skel-badge"></div><div class="skel-line skel-badge"></div></div>
+  </div>`).join('');
+    }
+
+    function listHTML(tasks, showFav = true) {
+      if (!tasks.length) return emptyState(lang === 'ru' ? 'Заданий не найдено.' : 'No tasks found.');
+      return tasks.map(t => tcard(t, showFav)).join('');
+    }
+
+    // ═══════════════════════════════
+    //  HOME
+    // ═══════════════════════════════
+    function initOnboarding() {
+      const card = document.getElementById('onboard-card');
+      if (!card) return;
+      card.style.display = localStorage.getItem('hd_onboarding_dismissed') ? 'none' : 'block';
+    }
+
+    function dismissOnboarding() {
+      localStorage.setItem('hd_onboarding_dismissed', '1');
+      const card = document.getElementById('onboard-card');
+      if (card) card.style.display = 'none';
+    }
+
+    async function loadAndRenderHome() {
+      initOnboarding();
+      renderUserTag();
+      document.getElementById('home-list').innerHTML = skeletonHTML(3);
+      try {
+        await fetchFavIds();
+        allTasks = await fetchTasks();
+      } catch (e) {
+        document.getElementById('home-list').innerHTML = errorState(lang === 'ru' ? 'Не удалось загрузить задания.' : 'Failed to load tasks.', 'loadAndRenderHome()');
+        return;
+      }
+      renderHome();
+    }
+
+    function distanceKm(lat1, lng1, lat2, lng2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function onSortChange() {
+      const sel = document.getElementById('sort-sel');
+      if (sel.value === 'near' && !myLoc) {
+        requestMyLocation();
+        return;
+      }
+      renderHome();
+    }
+
+    function requestMyLocation() {
+      if (!navigator.geolocation) {
+        toast(lang === 'ru' ? 'Геолокация не поддерживается' : 'Geolocation not supported', true);
+        document.getElementById('sort-sel').value = 'new';
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          renderHome();
+        },
+        () => {
+          toast(lang === 'ru' ? 'Не удалось определить местоположение' : 'Could not get your location', true);
+          document.getElementById('sort-sel').value = 'new';
+        },
+        { timeout: 8000 }
+      );
+    }
+
+    function renderHome() {
+      const q = (document.getElementById('search-in')?.value || '').toLowerCase();
+      const sort = document.getElementById('sort-sel')?.value || 'new';
+      let list = allTasks.filter(t => {
+        if (catSel !== 'all' && t.category !== catSel) return false;
+        if (q && !t.title.toLowerCase().includes(q) && !(t.description || '').toLowerCase().includes(q)) return false;
+        return true;
+      });
+      if (sort === 'price_up') list = [...list].sort((a, b) => (a.price || 0) - (b.price || 0));
+      if (sort === 'price_down') list = [...list].sort((a, b) => (b.price || 0) - (a.price || 0));
+      if (sort === 'near' && myLoc) {
+        list = [...list].sort((a, b) => {
+          const da = (a.lat != null && a.lng != null) ? distanceKm(myLoc.lat, myLoc.lng, a.lat, a.lng) : Infinity;
+          const db = (b.lat != null && b.lng != null) ? distanceKm(myLoc.lat, myLoc.lng, b.lat, b.lng) : Infinity;
+          return da - db;
+        });
+      }
+      const el = document.getElementById('home-list');
+      if (el) el.innerHTML = listHTML(list);
+    }
+
+    function setCat(btn, cat) {
+      document.querySelectorAll('#cats .chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active'); catSel = cat; renderHome();
+    }
+
+    // ═══════════════════════════════
+    //  MY TASKS
+    // ═══════════════════════════════
+    async function loadAndRenderMy() {
+      if (!currentUser) { document.getElementById('my-list').innerHTML = emptyState(lang === 'ru' ? 'Войдите, чтобы увидеть свои задания.' : 'Sign in to see your tasks.'); return; }
+      document.getElementById('my-list').innerHTML = skeletonHTML(2);
+      let my;
+      try {
+        my = await fetchTasks({ author_id: currentUser.id });
+      } catch (e) {
+        document.getElementById('my-list').innerHTML = errorState(lang === 'ru' ? 'Не удалось загрузить задания.' : 'Failed to load tasks.', 'loadAndRenderMy()');
+        return;
+      }
+      const cta = `<button class="btn btn-green" onclick="goTo('create')">${lang === 'ru' ? 'Разместить первое задание' : 'Post your first task'}</button>`;
+      document.getElementById('my-list').innerHTML = my.length ? my.map(t => tcard(t, false)).join('') : emptyState(lang === 'ru' ? 'У вас пока нет заданий.' : 'You have no tasks yet.', cta);
+      // update profile count
+      document.getElementById('p-cnt').textContent = my.length;
+      document.getElementById('p-done').textContent = my.filter(t => t.status === 'done').length;
+    }
+
+    function switchMyTab(t) {
+      document.getElementById('my-list').style.display = t === 'tasks' ? 'flex' : 'none';
+      document.getElementById('fav-list').style.display = t === 'fav' ? 'flex' : 'none';
+      document.getElementById('my-tab-tasks').classList.toggle('active', t === 'tasks');
+      document.getElementById('my-tab-fav').classList.toggle('active', t === 'fav');
+      if (t === 'fav') loadAndRenderFav();
+    }
+
+    // ═══════════════════════════════
+    //  FAVORITES
+    // ═══════════════════════════════
+    async function loadAndRenderFav() {
+      if (!currentUser) { document.getElementById('fav-list').innerHTML = emptyState(lang === 'ru' ? 'Войдите, чтобы видеть избранное.' : 'Sign in to see favorites.'); return; }
+      document.getElementById('fav-list').innerHTML = skeletonHTML(2);
+      const { data, error } = await sb.from('favorites').select(`task_id, tasks ( id, title, description, category, city, price, due_date, status, created_at, author_id )`).eq('user_id', currentUser.id);
+      if (error) {
+        document.getElementById('fav-list').innerHTML = errorState(lang === 'ru' ? 'Не удалось загрузить избранное.' : 'Failed to load favorites.', 'loadAndRenderFav()');
+        return;
+      }
+      const favTasks = (data || []).map(f => f.tasks).filter(Boolean);
+      document.getElementById('fav-list').innerHTML = favTasks.length ? favTasks.map(t => tcard(t, false)).join('') : emptyState(lang === 'ru' ? 'Избранных заданий нет.' : 'No favorites yet.');
+    }
+
+    async function toggleFav(taskId, e) {
+      e.stopPropagation();
+      if (!currentUser) { toast(lang === 'ru' ? 'Войдите, чтобы добавить в избранное' : 'Sign in to favorite', true); return; }
+      if (favIds.has(taskId)) {
+        favIds.delete(taskId);
+        await sb.from('favorites').delete().eq('user_id', currentUser.id).eq('task_id', taskId);
+      } else {
+        favIds.add(taskId);
+        await sb.from('favorites').insert({ user_id: currentUser.id, task_id: taskId });
+        toast(lang === 'ru' ? 'Добавлено в избранное' : 'Added to favorites');
+      }
+      renderHome();
+    }
+
+    // ═══════════════════════════════
+    //  CHATS
+    // ═══════════════════════════════
+    async function loadAndRenderChats() {
+      const list = document.getElementById('chats-list');
+      if (!currentUser) { list.innerHTML = emptyState(lang === 'ru' ? 'Войдите, чтобы видеть чаты.' : 'Sign in to see chats.'); return; }
+      list.innerHTML = skeletonHTML(2);
+
+      const [{ data: asOwner, error: err1 }, { data: asExecutor, error: err2 }] = await Promise.all([
+        sb.from('tasks').select('id, title, status, responses!inner(author_id)').eq('author_id', currentUser.id).eq('responses.status', 'accepted'),
+        sb.from('responses').select('task_id, tasks!inner(id, title, status, author_id)').eq('author_id', currentUser.id).eq('status', 'accepted')
+      ]);
+
+      if (err1 || err2) {
+        list.innerHTML = errorState(lang === 'ru' ? 'Не удалось загрузить чаты.' : 'Failed to load chats.', 'loadAndRenderChats()');
+        return;
+      }
+
+      const convos = [
+        ...(asOwner || []).map(t => ({ taskId: t.id, taskTitle: t.title, partnerId: t.responses?.[0]?.author_id })),
+        ...(asExecutor || []).map(r => ({ taskId: r.tasks.id, taskTitle: r.tasks.title, partnerId: r.tasks.author_id }))
+      ].filter(c => c.partnerId);
+
+      if (!convos.length) {
+        list.innerHTML = emptyState(lang === 'ru' ? 'Пока нет активных переписок.' : 'No active chats yet.');
+        return;
+      }
+
+      const partnerIds = [...new Set(convos.map(c => c.partnerId))];
+      const { data: profiles } = await sb.from('profiles').select('id, display_name').in('id', partnerIds);
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+
+      const lastMsgs = await Promise.all(convos.map(c =>
+        sb.from('messages').select('text, created_at').eq('task_id', c.taskId).order('created_at', { ascending: false }).limit(1)
+      ));
+
+      list.innerHTML = convos.map((c, i) => {
+        const partner = profileMap[c.partnerId];
+        const name = partner?.display_name || '—';
+        const lastMsg = lastMsgs[i]?.data?.[0];
+        const raw = (lastMsg?.text || '').slice(0, 60);
+        const preview = lastMsg ? escHtml(raw) + (lastMsg.text.length > 60 ? '…' : '') : (lang === 'ru' ? 'Начните переписку' : 'Start the conversation');
+        return `
+      <div class="resp-card" style="cursor:pointer;" onclick="openChatFromList('${c.taskId}')">
+        <div class="resp-card-top">
+          <div class="resp-user">
+            <div class="resp-av">${getInitials(name)}</div>
+            <div>
+              <div class="resp-uname">${escHtml(name)}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:1px;">${escHtml(c.taskTitle)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="resp-msg" style="margin-bottom:0;">${preview}</div>
+      </div>`;
+      }).join('');
+    }
+
+    async function openChatFromList(taskId) {
+      await openDetail(taskId);
+      await openChat();
+    }
+
+    // ═══════════════════════════════
+    //  LOCATION PICKER (create task)
+    // ═══════════════════════════════
+    function toggleLocationPicker() {
+      const wrap = document.getElementById('create-map-wrap');
+      const show = wrap.style.display === 'none';
+      wrap.style.display = show ? 'block' : 'none';
+      if (show) setTimeout(initCreateMap, 0);
+    }
+
+    function initCreateMap() {
+      if (createMap) { createMap.invalidateSize(); return; }
+      const startLat = 55.751244, startLng = 37.618423; // Москва — дефолт
+      createMap = L.map('create-map').setView([startLat, startLng], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(createMap);
+      createMap.on('click', (e) => setCreateMarker(e.latlng.lat, e.latlng.lng));
+      locateMeOnCreateMap(true);
+    }
+
+    function setCreateMarker(lat, lng) {
+      pickedLat = lat; pickedLng = lng;
+      if (createMarker) {
+        createMarker.setLatLng([lat, lng]);
+      } else {
+        createMarker = L.circleMarker([lat, lng], { radius: 9, color: '#2ecc71', weight: 2, fillColor: '#2ecc71', fillOpacity: .6 }).addTo(createMap);
+      }
+    }
+
+    function locateMeOnCreateMap(silent = false) {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          createMap.setView([latitude, longitude], 14);
+          setCreateMarker(latitude, longitude);
+        },
+        () => { if (!silent) toast(lang === 'ru' ? 'Не удалось определить местоположение' : 'Could not get your location', true); },
+        { timeout: 8000 }
+      );
+    }
+
+    function jitterCoord(lat, lng) {
+      // случайное смещение ~200–400 м в случайном направлении — публичная (неточная) метка
+      const meters = 200 + Math.random() * 200;
+      const angle = Math.random() * 2 * Math.PI;
+      const dLat = (meters * Math.cos(angle)) / 111320;
+      const dLng = (meters * Math.sin(angle)) / (111320 * Math.cos(lat * Math.PI / 180));
+      return { lat: lat + dLat, lng: lng + dLng };
+    }
+
+    // ═══════════════════════════════
+    //  CREATE TASK
+    // ═══════════════════════════════
+    async function submitTask() {
+      if (!currentUser || isGuest) { toast(lang === 'ru' ? 'Войдите, чтобы создать задание' : 'Sign in to post a task', true); return; }
+      const title = document.getElementById('c-title').value.trim();
+      const errEl = document.getElementById('c-err');
+      if (!title) { errEl.textContent = lang === 'ru' ? 'Введите название задания' : 'Enter a task title'; return; }
+      const btn = document.getElementById('btn-create');
+      btn.disabled = true;
+
+      const taskData = {
+        author_id: currentUser.id,
+        title,
+        description: document.getElementById('c-desc').value.trim() || null,
+        category: document.getElementById('c-cat').value,
+        city: document.getElementById('c-city').value.trim() || null,
+        price: parseInt(document.getElementById('c-price').value) || 0,
+        due_date: document.getElementById('c-date').value || null,
+        status: 'open'
+      };
+      if (pickedLat != null) {
+        const approx = jitterCoord(pickedLat, pickedLng);
+        taskData.lat = approx.lat;
+        taskData.lng = approx.lng;
+      }
+
+      const { data: newTask, error } = await sb.from('tasks').insert(taskData).select().single();
+      btn.disabled = false;
+      if (error) { errEl.textContent = error.message; return; }
+
+      if (pickedLat != null && newTask) {
+        const address = document.getElementById('c-address').value.trim() || null;
+        const { error: locErr } = await sb.from('task_locations').insert({
+          task_id: newTask.id, lat: pickedLat, lng: pickedLng, address
+        });
+        if (locErr) console.error('task_locations insert error:', locErr);
+      }
+
+      errEl.textContent = '';
+      ['c-title', 'c-desc', 'c-price', 'c-date', 'c-address'].forEach(id => document.getElementById(id).value = '');
+      pickedLat = null; pickedLng = null;
+      if (createMarker && createMap) { createMap.removeLayer(createMarker); createMarker = null; }
+      document.getElementById('create-map-wrap').style.display = 'none';
+      toast(lang === 'ru' ? 'Задание опубликовано' : 'Task posted');
+      setTimeout(() => goTo('home'), 500);
+    }
+
+    // ═══════════════════════════════
+    //  PROFILE
+    // ═══════════════════════════════
+    function getInitials(name) {
+      return (name || '').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '—';
+    }
+
+    function renderProfile() {
+      const u = currentUser;
+      const p = currentProfile;
+      if (!u) return;
+      const name = p?.display_name || u.email?.split('@')[0] || '—';
+      const city = p?.city || '—';
+      const rating = parseFloat(p?.rating || 0);
+      document.getElementById('p-av').textContent = getInitials(name);
+      document.getElementById('p-name').textContent = name;
+      document.getElementById('p-email').textContent = u.email || '—';
+      document.getElementById('p-phone').textContent = p?.phone || '—';
+      document.getElementById('p-city2').textContent = city;
+      document.getElementById('p-rating').textContent = rating.toFixed(1);
+      const since = p?.created_at ? new Date(p.created_at).getFullYear() : new Date(u.created_at || Date.now()).getFullYear();
+      document.getElementById('p-since').textContent = since;
+      document.getElementById('p-city').innerHTML = `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escHtml(city)}`;
+
+      const filled = Math.max(0, Math.min(5, Math.round(rating)));
+      const starsHtml = Array.from({ length: 5 }).map((_, i) => `<span class="star${i < filled ? '' : ' e'}">★</span>`).join('');
+      document.getElementById('p-stars').innerHTML = `${starsHtml}<span class="star-val" id="p-rating-val">${rating.toFixed(1)}</span>`;
+    }
+
+    // ═══════════════════════════════
+    //  REVIEWS
+    // ═══════════════════════════════
+    async function loadAndRenderReviews() {
+      const list = document.getElementById('p-reviews-list');
+      if (!currentUser || !list) return;
+      list.innerHTML = skeletonHTML(2);
+
+      const { data, error } = await sb.from('reviews').select('*').eq('reviewee_id', currentUser.id).order('created_at', { ascending: false });
+      if (error) {
+        list.innerHTML = errorState(lang === 'ru' ? 'Не удалось загрузить отзывы.' : 'Failed to load reviews.', 'loadAndRenderReviews()');
+        return;
+      }
+      if (!data?.length) {
+        list.innerHTML = `<div style="color:var(--muted);font-size:13px;">${lang === 'ru' ? 'Пока нет отзывов.' : 'No reviews yet.'}</div>`;
+        return;
+      }
+
+      const reviewerIds = [...new Set(data.map(r => r.reviewer_id))];
+      const { data: profiles } = await sb.from('profiles').select('id, display_name').in('id', reviewerIds);
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+
+      list.innerHTML = data.map(r => {
+        const reviewer = profileMap[r.reviewer_id];
+        const name = reviewer?.display_name || '—';
+        const stars = Array.from({ length: 5 }).map((_, i) => `<span class="star${i < r.stars ? '' : ' e'}" style="font-size:12px;">★</span>`).join('');
+        const date = new Date(r.created_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+        return `
+        <div class="resp-card" style="margin-bottom:10px;">
+          <div class="resp-card-top">
+            <div class="resp-user">
+              <div class="resp-av">${getInitials(name)}</div>
+              <div class="resp-uname">${escHtml(name)}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">${stars}</div>
+          </div>
+          ${r.text ? `<div class="resp-msg" style="margin-bottom:4px;">${escHtml(r.text)}</div>` : ''}
+          <div style="font-size:11px;color:var(--muted);">${date}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ═══════════════════════════════
+    //  EDIT PROFILE MODAL
+    // ═══════════════════════════════
+    function openEditModal() {
+      const p = currentProfile;
+      const u = currentUser;
+      const name = p?.display_name || u?.email?.split('@')[0] || '';
+      const city = p?.city || '';
+      const phone = p?.phone || '';
+      document.getElementById('edit-name').value = name;
+      document.getElementById('edit-city').value = city;
+      document.getElementById('edit-phone').value = phone;
+      document.getElementById('edit-err').textContent = '';
+      document.getElementById('edit-av-preview').textContent = getInitials(name);
+      document.getElementById('modal-edit').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeEditModal(e) {
+      if (e && e.target !== document.getElementById('modal-edit')) return;
+      document.getElementById('modal-edit').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function updateAvatarPreview() {
+      const name = document.getElementById('edit-name').value;
+      document.getElementById('edit-av-preview').textContent = getInitials(name) || '—';
+    }
+
+    async function saveProfile() {
+      const name = document.getElementById('edit-name').value.trim();
+      const city = document.getElementById('edit-city').value.trim();
+      const phone = document.getElementById('edit-phone').value.trim();
+      const errEl = document.getElementById('edit-err');
+      const btn = document.getElementById('btn-save-profile');
+      if (!name) { errEl.textContent = lang === 'ru' ? 'Введите имя' : 'Enter your name'; return; }
+
+      btn.disabled = true;
+      btn.querySelector('span').textContent = lang === 'ru' ? 'Сохраняем...' : 'Saving...';
+
+      const { error } = await sb.from('profiles').upsert({
+        id: currentUser.id,
+        display_name: name,
+        city: city || null,
+        phone: phone || null
+      });
+
+      btn.disabled = false;
+      btn.querySelector('span').textContent = lang === 'ru' ? 'Сохранить изменения' : 'Save Changes';
+
+      if (error) { errEl.textContent = error.message; return; }
+
+      // обновляем локальный профиль
+      await loadProfile();
+      renderProfile();
+      document.getElementById('modal-edit').classList.remove('open');
+      document.body.style.overflow = '';
+      toast(lang === 'ru' ? 'Профиль обновлён' : 'Profile updated');
+    }
+
+    // ═══════════════════════════════
+    //  TASK DETAIL — MAP
+    // ═══════════════════════════════
+    function renderTaskMap(t) {
+      const wrap = document.getElementById('d-map-wrap');
+      if (t.lat == null || t.lng == null) { wrap.style.display = 'none'; return; }
+      wrap.style.display = 'block';
+
+      const addrLine = document.getElementById('d-address-line');
+      const lockedHint = document.getElementById('d-locked-hint');
+      addrLine.style.display = 'none';
+      lockedHint.style.display = 'flex';
+      lockedHint.innerHTML = `${iPin()} ${lang === 'ru' ? 'Точный адрес станет виден после того, как автор примет ваш отклик' : 'The exact address appears once the poster accepts a response'}`;
+
+      setTimeout(() => {
+        if (detailMap) { detailMap.remove(); detailMap = null; detailMarker = null; detailCircle = null; }
+        detailMap = L.map('d-map').setView([t.lat, t.lng], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(detailMap);
+        detailCircle = L.circle([t.lat, t.lng], { radius: 350, color: '#2ecc71', weight: 1, fillColor: '#2ecc71', fillOpacity: .15 }).addTo(detailMap);
+      }, 0);
+    }
+
+    async function revealExactLocation(taskId) {
+      const { data: loc, error } = await sb.from('task_locations').select('*').eq('task_id', taskId).single();
+      if (error || !loc) return;
+      // карта могла ещё не успеть проинициализироваться (setTimeout в renderTaskMap) — ждём тик
+      setTimeout(() => {
+        if (!detailMap) return;
+        if (detailCircle) { detailMap.removeLayer(detailCircle); detailCircle = null; }
+        detailMap.setView([loc.lat, loc.lng], 15);
+        if (detailMarker) detailMap.removeLayer(detailMarker);
+        detailMarker = L.circleMarker([loc.lat, loc.lng], { radius: 9, color: '#2ecc71', weight: 2, fillColor: '#2ecc71', fillOpacity: .7 }).addTo(detailMap);
+        document.getElementById('d-locked-hint').style.display = 'none';
+        const addrLine = document.getElementById('d-address-line');
+        addrLine.style.display = 'flex';
+        addrLine.innerHTML = `${iPin()} ${loc.address ? escHtml(loc.address) : (lang === 'ru' ? 'Точное место отмечено на карте' : 'Exact spot marked on the map')}`;
+      }, 50);
+    }
+
+    // ═══════════════════════════════
+    //  TASK DETAIL
+    // ═══════════════════════════════
+    let currentTask = null;
+    let prevScreen = 'home';
+
+    async function openDetail(taskId) {
+      prevScreen = document.querySelector('.screen.active')?.id?.replace('screen-', '') || 'home';
+      document.querySelectorAll('.screen').forEach(e => e.classList.remove('active'));
+      document.getElementById('screen-detail').classList.add('active');
+      window.scrollTo(0, 0);
+
+      // загружаем задание
+      const { data: t, error: tErr } = await sb.from('tasks').select(`
+    *, profiles ( display_name )
+  `).eq('id', taskId).single();
+
+      if (tErr || !t) {
+        document.getElementById('d-price').textContent = '';
+        document.getElementById('d-title').textContent = lang === 'ru' ? 'Не удалось загрузить задание' : 'Failed to load task';
+        document.getElementById('d-meta').innerHTML = '';
+        document.getElementById('d-desc').innerHTML = `<button class="btn btn-ghost" onclick="openDetail('${taskId}')">${lang === 'ru' ? 'Повторить' : 'Retry'}</button>`;
+        document.getElementById('d-respond-wrap').style.display = 'none';
+        document.getElementById('d-chat-wrap').style.display = 'none';
+        document.getElementById('d-responses-wrap').style.display = 'none';
+        document.getElementById('d-map-wrap').style.display = 'none';
+        return;
+      }
+      currentTask = t;
+
+      const price = t.price ? `₽${Number(t.price).toLocaleString()}` : (lang === 'ru' ? 'Договорная' : 'Negotiable');
+      document.getElementById('d-price').textContent = price;
+      document.getElementById('d-title').textContent = t.title;
+      document.getElementById('d-desc').textContent = t.description || '';
+
+      // мета
+      const meta = document.getElementById('d-meta');
+      const cat = catLabels[t.category]?.[lang] || t.category || '';
+      const st = statL[t.status]?.[lang] || t.status;
+      meta.innerHTML = `
+    <span class="badge b-${t.status}">${st}</span>
+    ${cat ? `<span class="tcard-cat">${catDot(t.category)}${cat}</span>` : ''}
+    ${t.city ? `<span class="tcard-meta">${iPin()} ${escHtml(t.city)}</span>` : ''}
+    ${t.due_date ? `<span class="tcard-meta">${iCal()} ${t.due_date}</span>` : ''}
+  `;
+
+      // автор
+      const authorName = t.profiles?.display_name || '—';
+      document.getElementById('d-author-av').textContent = getInitials(authorName);
+      document.getElementById('d-author-name').textContent = authorName;
+
+      const isOwner = currentUser && t.author_id === currentUser.id;
+      const isOpen = t.status === 'open';
+      const isInProgress = t.status === 'inprogress';
+
+      renderTaskMap(t);
+      if (isOwner) revealExactLocation(taskId);
+
+      // показываем кнопку отклика или чата или список откликов
+      document.getElementById('d-respond-wrap').style.display = (!isOwner && isOpen && currentUser && !isGuest) ? 'block' : 'none';
+      document.getElementById('d-responses-wrap').style.display = isOwner ? 'block' : 'none';
+      document.getElementById('d-chat-wrap').style.display = 'none'; // сбрасываем
+
+      if (isOwner && isInProgress) {
+        const chatWrap = document.getElementById('d-chat-wrap');
+        chatWrap.style.display = 'flex';
+        // кнопка "Выполнено" только автору
+        document.getElementById('btn-complete').style.display = 'block';
+      }
+
+      if (isOwner) loadResponses(taskId);
+
+      // проверяем — уже откликнулся?
+      if (!isOwner && currentUser) {
+        const { data: myResp } = await sb.from('responses').select('id,status').eq('task_id', taskId).eq('author_id', currentUser.id).single();
+        if (myResp) {
+          const btn = document.getElementById('btn-respond');
+          btn.disabled = true;
+          const labels = { pending: lang === 'ru' ? 'Отклик отправлен' : 'Application sent', accepted: lang === 'ru' ? 'Отклик принят' : 'Accepted', rejected: lang === 'ru' ? 'Отклик отклонён' : 'Rejected' };
+          btn.querySelector('span').textContent = labels[myResp.status] || labels.pending;
+          // если принят — показываем кнопку чата исполнителю (без кнопки завершения)
+          if (myResp.status === 'accepted') {
+            document.getElementById('d-respond-wrap').style.display = 'none';
+            const chatWrap = document.getElementById('d-chat-wrap');
+            chatWrap.style.display = 'flex';
+            document.getElementById('btn-complete').style.display = 'none';
+            revealExactLocation(taskId);
+          }
+        }
+      }
+    }
+
+    function goBack() {
+      document.querySelectorAll('.screen').forEach(e => e.classList.remove('active'));
+      document.getElementById('screen-' + prevScreen).classList.add('active');
+    }
+
+    async function loadResponses(taskId) {
+      const list = document.getElementById('d-responses-list');
+      list.innerHTML = skeletonHTML(2);
+
+      const { data, error } = await sb.from('responses')
+        .select('*')
+        .eq('task_id', taskId)
+        .order('created_at');
+
+      if (error) {
+        console.error('responses error:', error);
+        list.innerHTML = errorState(lang === 'ru' ? 'Не удалось загрузить отклики.' : 'Failed to load responses.', `loadResponses('${taskId}')`);
+        return;
+      }
+
+      if (!data?.length) {
+        list.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:8px 0;">${lang === 'ru' ? 'Откликов пока нет.' : 'No responses yet.'}</div>`;
+        return;
+      }
+
+      // загружаем профили исполнителей отдельно
+      const authorIds = [...new Set(data.map(r => r.author_id))];
+      const { data: profiles } = await sb.from('profiles')
+        .select('id, display_name')
+        .in('id', authorIds);
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+
+      const statusBadge = {
+        pending: `<span class="resp-badge-pending">${lang === 'ru' ? 'Ожидает' : 'Pending'}</span>`,
+        accepted: `<span class="resp-badge-accepted">${lang === 'ru' ? 'Принят' : 'Accepted'}</span>`,
+        rejected: `<span class="resp-badge-rejected">${lang === 'ru' ? 'Отклонён' : 'Rejected'}</span>`,
+      };
+
+      const isOpen = currentTask?.status === 'open';
+
+      list.innerHTML = data.map(r => {
+        const profile = profileMap[r.author_id];
+        const name = profile?.display_name || r.author_id?.slice(0, 8) || '—';
+        const price = r.price ? `₽${Number(r.price).toLocaleString()}` : '';
+        const actions = (isOpen && r.status === 'pending') ? `
+      <div class="resp-actions">
+        <button class="btn btn-sm btn-accept" onclick="acceptResponse('${r.id}','${r.author_id}','${taskId}')">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          ${lang === 'ru' ? 'Принять' : 'Accept'}
+        </button>
+        <button class="btn btn-sm btn-reject" onclick="rejectResponse('${r.id}')">
+          ${lang === 'ru' ? 'Отклонить' : 'Decline'}
+        </button>
+      </div>` : '';
+        return `
+    <div class="resp-card">
+      <div class="resp-card-top">
+        <div class="resp-user">
+          <div class="resp-av">${getInitials(name)}</div>
+          <div class="resp-uname">${escHtml(name)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${price ? `<div class="resp-price">${price}</div>` : ''}
+          ${statusBadge[r.status] || ''}
+        </div>
+      </div>
+      ${r.message ? `<div class="resp-msg">${escHtml(r.message)}</div>` : ''}
+      ${actions}
+    </div>`;
+      }).join('');
+    }
+
+    // ═══════════════════════════════
+    //  RESPOND MODAL
+    // ═══════════════════════════════
+    function openRespondModal() {
+      document.getElementById('resp-price').value = '';
+      document.getElementById('resp-msg').value = '';
+      document.getElementById('resp-err').textContent = '';
+      document.getElementById('modal-respond').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeRespondModal(e) {
+      if (e && e.target !== document.getElementById('modal-respond')) return;
+      document.getElementById('modal-respond').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    async function submitResponse() {
+      if (!currentUser || !currentTask) return;
+      const msg = document.getElementById('resp-msg').value.trim();
+      const price = parseInt(document.getElementById('resp-price').value) || 0;
+      const errEl = document.getElementById('resp-err');
+      const btn = document.getElementById('btn-send-resp');
+
+      btn.disabled = true;
+      btn.querySelector('span').textContent = lang === 'ru' ? 'Отправляем...' : 'Sending...';
+
+      const { error } = await sb.from('responses').insert({
+        task_id: currentTask.id,
+        author_id: currentUser.id,
+        message: msg || null,
+        price: price || null,
+        status: 'pending'
+      });
+
+      btn.disabled = false;
+      btn.querySelector('span').textContent = lang === 'ru' ? 'Отправить отклик' : 'Send Application';
+
+      if (error) {
+        errEl.textContent = error.code === '23505'
+          ? (lang === 'ru' ? 'Вы уже откликнулись на это задание' : 'You already applied')
+          : error.message;
+        return;
+      }
+
+      document.getElementById('modal-respond').classList.remove('open');
+      document.body.style.overflow = '';
+
+      // обновляем кнопку
+      const respBtn = document.getElementById('btn-respond');
+      respBtn.disabled = true;
+      respBtn.querySelector('span').textContent = lang === 'ru' ? 'Отклик отправлен' : 'Application sent';
+
+      toast(lang === 'ru' ? 'Отклик отправлен' : 'Application sent');
+    }
+
+    async function acceptResponse(respId, executorId, taskId) {
+      await sb.from('responses').update({ status: 'accepted' }).eq('id', respId);
+      await sb.from('responses').update({ status: 'rejected' }).eq('task_id', taskId).neq('id', respId);
+      await sb.from('tasks').update({ status: 'inprogress' }).eq('id', taskId);
+      currentTask.status = 'inprogress';
+      currentTask._executorId = executorId;
+      toast(lang === 'ru' ? 'Исполнитель выбран' : 'Executor selected');
+      loadResponses(taskId);
+      document.getElementById('d-respond-wrap').style.display = 'none';
+      // показываем кнопку чата для автора
+      document.getElementById('d-chat-wrap').style.display = 'block';
+      const meta = document.getElementById('d-meta');
+      if (meta) {
+        const badge = meta.querySelector('.badge');
+        if (badge) { badge.className = 'badge b-inprogress'; badge.textContent = lang === 'ru' ? 'В работе' : 'In Progress'; }
+      }
+    }
+
+    async function rejectResponse(respId) {
+      await sb.from('responses').update({ status: 'rejected' }).eq('id', respId);
+      toast(lang === 'ru' ? 'Отклик отклонён' : 'Response declined');
+      loadResponses(currentTask.id);
+    }
+
+    // ═══════════════════════════════
+    //  CHAT
+    // ═══════════════════════════════
+    let chatSubscription = null;
+    let chatPartnerId = null;
+    let chatPartnerName = '';
+
+    async function openChat() {
+      if (!currentTask || !currentUser) return;
+
+      const isOwner = currentTask.author_id === currentUser.id;
+
+      if (isOwner) {
+        // ищем принятый отклик без join
+        const { data: accepted, error } = await sb.from('responses')
+          .select('author_id')
+          .eq('task_id', currentTask.id)
+          .eq('status', 'accepted')
+          .limit(1);
+
+        if (error || !accepted?.length) {
+          toast(lang === 'ru' ? 'Исполнитель не найден' : 'Executor not found', true);
+          return;
+        }
+        chatPartnerId = accepted[0].author_id;
+        const { data: prf } = await sb.from('profiles').select('display_name').eq('id', chatPartnerId).single();
+        chatPartnerName = prf?.display_name || 'Исполнитель';
+      } else {
+        chatPartnerId = currentTask.author_id;
+        const { data: prf } = await sb.from('profiles').select('display_name').eq('id', chatPartnerId).single();
+        chatPartnerName = prf?.display_name || 'Заказчик';
+      }
+
+      document.querySelectorAll('.screen').forEach(e => e.classList.remove('active'));
+      document.getElementById('screen-chat').classList.add('active');
+      document.getElementById('chat-title').textContent = chatPartnerName;
+      document.getElementById('chat-subtitle').textContent = currentTask.title;
+      document.getElementById('chat-input').value = '';
+
+      await loadMessages();
+      subscribeToMessages();
+    }
+
+    function closeChat() {
+      if (chatSubscription) { sb.removeChannel(chatSubscription); chatSubscription = null; }
+      document.querySelectorAll('.screen').forEach(e => e.classList.remove('active'));
+      document.getElementById('screen-detail').classList.add('active');
+    }
+
+    async function loadMessages() {
+      const container = document.getElementById('chat-messages');
+      container.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding:16px 20px;">
+    <div class="skel-line" style="width:55%;height:34px;border-radius:14px;align-self:flex-start;"></div>
+    <div class="skel-line" style="width:40%;height:34px;border-radius:14px;align-self:flex-end;"></div>
+    <div class="skel-line" style="width:60%;height:34px;border-radius:14px;align-self:flex-start;"></div>
+  </div>`;
+
+      const { data, error } = await sb.from('messages')
+        .select('*')
+        .eq('task_id', currentTask.id)
+        .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+        .order('created_at');
+
+      if (error) {
+        container.innerHTML = errorState(lang === 'ru' ? 'Не удалось загрузить сообщения.' : 'Failed to load messages.', 'loadMessages()');
+        return;
+      }
+
+      // отмечаем прочитанными
+      if (data?.length) {
+        await sb.from('messages').update({ is_read: true })
+          .eq('task_id', currentTask.id)
+          .eq('receiver_id', currentUser.id)
+          .eq('is_read', false);
+      }
+
+      renderMessages(data || []);
+    }
+
+    function renderMessages(msgs) {
+      const container = document.getElementById('chat-messages');
+      if (!msgs.length) {
+        container.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:40px 0;">${lang === 'ru' ? 'Начните переписку' : 'Start the conversation'}</div>`;
+        return;
+      }
+
+      let lastDate = '';
+      container.innerHTML = msgs.map(m => {
+        const mine = m.sender_id === currentUser.id;
+        const d = new Date(m.created_at);
+        const dateStr = d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'long' });
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        let dateSep = '';
+        if (dateStr !== lastDate) { lastDate = dateStr; dateSep = `<div class="chat-date-sep">${dateStr}</div>`; }
+        return `${dateSep}
+    <div class="msg-wrap ${mine ? 'mine' : 'theirs'}">
+      <div class="msg-bubble">${escHtml(m.text)}</div>
+      <div class="msg-time">${timeStr}</div>
+    </div>`;
+      }).join('');
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function escHtml(t) {
+      return (t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    }
+
+    function subscribeToMessages() {
+      if (chatSubscription) sb.removeChannel(chatSubscription);
+      chatSubscription = sb.channel('chat-' + currentTask.id)
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'messages',
+          filter: `task_id=eq.${currentTask.id}`
+        }, async (payload) => {
+          const m = payload.new;
+          // показываем только если касается нас
+          if (m.sender_id !== currentUser.id && m.receiver_id !== currentUser.id) return;
+          const container = document.getElementById('chat-messages');
+          const mine = m.sender_id === currentUser.id;
+          const d = new Date(m.created_at);
+          const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const div = document.createElement('div');
+          div.className = `msg-wrap ${mine ? 'mine' : 'theirs'}`;
+          div.innerHTML = `<div class="msg-bubble">${escHtml(m.text)}</div><div class="msg-time">${timeStr}</div>`;
+          // убираем пустое состояние если было
+          const empty = container.querySelector('[style*="text-align:center"]');
+          if (empty) empty.remove();
+          container.appendChild(div);
+          container.scrollTop = container.scrollHeight;
+          // отмечаем прочитанным
+          if (!mine) {
+            await sb.from('messages').update({ is_read: true }).eq('id', m.id);
+          }
+        })
+        .subscribe();
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text || !chatPartnerId || !currentTask) return;
+
+      input.value = '';
+      input.style.height = 'auto';
+
+      const { error } = await sb.from('messages').insert({
+        task_id: currentTask.id,
+        sender_id: currentUser.id,
+        receiver_id: chatPartnerId,
+        text
+      });
+
+      if (error) toast(lang === 'ru' ? 'Ошибка отправки' : 'Send error', true);
+    }
+
+    // ═══════════════════════════════
+    //  COMPLETE TASK + REVIEW
+    // ═══════════════════════════════
+    let selectedStars = 0;
+
+    function openReviewModal() {
+      selectedStars = 0;
+      document.querySelectorAll('.star-pick').forEach(s => s.classList.remove('active'));
+      document.getElementById('star-label').textContent = lang === 'ru' ? 'Выберите оценку' : 'Select rating';
+      document.getElementById('review-text').value = '';
+      document.getElementById('review-err').textContent = '';
+      document.getElementById('modal-review').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeReviewModal(e) {
+      if (e && e.target !== document.getElementById('modal-review')) return;
+      document.getElementById('modal-review').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function pickStar(n) {
+      selectedStars = n;
+      document.querySelectorAll('.star-pick').forEach(s => {
+        s.classList.toggle('active', parseInt(s.dataset.v) <= n);
+      });
+      const labels = { ru: ['', 'Плохо', 'Неплохо', 'Нормально', 'Хорошо', 'Отлично!'], en: ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent!'] };
+      document.getElementById('star-label').textContent = labels[lang][n];
+    }
+
+    async function submitReview() {
+      if (!selectedStars) {
+        document.getElementById('review-err').textContent = lang === 'ru' ? 'Поставьте оценку' : 'Please select a rating';
+        return;
+      }
+      const text = document.getElementById('review-text').value.trim();
+      await doCompleteTask(selectedStars, text);
+    }
+
+    async function completeWithoutReview() {
+      await doCompleteTask(null, null);
+    }
+
+    async function doCompleteTask(stars, reviewText) {
+      if (!currentTask) return;
+      const btn = document.getElementById('btn-submit-review');
+      if (btn) { btn.disabled = true; }
+
+      // 1. статус задания → done
+      await sb.from('tasks').update({ status: 'done' }).eq('id', currentTask.id);
+      currentTask.status = 'done';
+
+      // 2. находим исполнителя
+      const { data: accepted } = await sb.from('responses')
+        .select('author_id')
+        .eq('task_id', currentTask.id)
+        .eq('status', 'accepted')
+        .limit(1);
+
+      const executorId = accepted?.[0]?.author_id;
+
+      if (executorId && stars) {
+        // 3. пересчитываем рейтинг исполнителя
+        const { data: profile } = await sb.from('profiles')
+          .select('rating, done_count')
+          .eq('id', executorId)
+          .single();
+
+        const oldRating = parseFloat(profile?.rating || 0);
+        const oldCount = parseInt(profile?.done_count || 0);
+        const newCount = oldCount + 1;
+        const newRating = ((oldRating * oldCount) + stars) / newCount;
+
+        await sb.from('profiles').update({
+          rating: Math.round(newRating * 10) / 10,
+          done_count: newCount
+        }).eq('id', executorId);
+
+        // 3b. сохраняем сам отзыв
+        await sb.from('reviews').insert({
+          task_id: currentTask.id,
+          reviewer_id: currentUser.id,
+          reviewee_id: executorId,
+          stars,
+          text: reviewText || null
+        });
+      } else if (executorId) {
+        // завершили без оценки — просто +1 к выполненным
+        const { data: profile } = await sb.from('profiles').select('done_count').eq('id', executorId).single();
+        await sb.from('profiles').update({ done_count: (profile?.done_count || 0) + 1 }).eq('id', executorId);
+      }
+
+      // 4. обновляем UI
+      closeReviewModal();
+      document.getElementById('d-chat-wrap').style.display = 'none';
+
+      // обновляем бейдж
+      const meta = document.getElementById('d-meta');
+      if (meta) {
+        const badge = meta.querySelector('.badge');
+        if (badge) { badge.className = 'badge b-done'; badge.textContent = lang === 'ru' ? 'Выполнено' : 'Done'; }
+      }
+
+      toast(lang === 'ru' ? 'Задание завершено!' : 'Task completed!');
+    }
+
+    function toast(msg, err = false) {
+      const el = document.getElementById('toast');
+      const dot = el.querySelector('.t-dot');
+      document.getElementById('toast-msg').textContent = msg;
+      el.className = 'toast' + (err ? ' err' : '') + ' show';
+      if (dot) dot.style.background = err ? 'var(--danger)' : 'var(--green)';
+      setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    // ═══════════════════════════════
+    //  START
+    // ═══════════════════════════════
+    boot();
+  </script>
+</body>
+
+</html>
