@@ -842,8 +842,7 @@
     // ═══════════════════════════════
     async function fetchTasks(filters = {}) {
       let q = sb.from('tasks').select(`
-    id, title, description, category, city, price, due_date, status, created_at, author_id, lat, lng,
-    profiles ( display_name )
+    id, title, description, category, city, price, due_date, status, created_at, author_id, lat, lng
   `).order('created_at', { ascending: false });
 
       if (filters.cat && filters.cat !== 'all') q = q.eq('category', filters.cat);
@@ -1154,7 +1153,7 @@
       }
 
       const partnerIds = [...new Set(convos.map(c => c.partnerId))];
-      const { data: profiles } = await sb.from('profiles').select('id, display_name').in('id', partnerIds);
+      const { data: profiles } = await sb.from('profiles_public').select('id, display_name').in('id', partnerIds);
       const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
 
       const lastMsgs = await Promise.all(convos.map(c =>
@@ -1337,7 +1336,7 @@
       }
 
       const reviewerIds = [...new Set(data.map(r => r.reviewer_id))];
-      const { data: profiles } = await sb.from('profiles').select('id, display_name').in('id', reviewerIds);
+      const { data: profiles } = await sb.from('profiles_public').select('id, display_name').in('id', reviewerIds);
       const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
 
       list.innerHTML = data.map(r => {
@@ -1475,9 +1474,7 @@
       window.scrollTo(0, 0);
 
       // загружаем задание
-      const { data: t, error: tErr } = await sb.from('tasks').select(`
-    *, profiles ( display_name )
-  `).eq('id', taskId).single();
+      const { data: t, error: tErr } = await sb.from('tasks').select('*').eq('id', taskId).single();
 
       if (tErr || !t) {
         document.getElementById('d-price').textContent = '';
@@ -1509,7 +1506,8 @@
   `;
 
       // автор
-      const authorName = t.profiles?.display_name || '—';
+      const { data: authorProfile } = await sb.from('profiles_public').select('display_name').eq('id', t.author_id).single();
+      const authorName = authorProfile?.display_name || '—';
       document.getElementById('d-author-av').textContent = getInitials(authorName);
       document.getElementById('d-author-name').textContent = authorName;
 
@@ -1581,7 +1579,7 @@
 
       // загружаем профили исполнителей отдельно
       const authorIds = [...new Set(data.map(r => r.author_id))];
-      const { data: profiles } = await sb.from('profiles')
+      const { data: profiles } = await sb.from('profiles_public')
         .select('id, display_name')
         .in('id', authorIds);
       const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
@@ -1731,11 +1729,11 @@
           return;
         }
         chatPartnerId = accepted[0].author_id;
-        const { data: prf } = await sb.from('profiles').select('display_name').eq('id', chatPartnerId).single();
+        const { data: prf } = await sb.from('profiles_public').select('display_name').eq('id', chatPartnerId).single();
         chatPartnerName = prf?.display_name || 'Исполнитель';
       } else {
         chatPartnerId = currentTask.author_id;
-        const { data: prf } = await sb.from('profiles').select('display_name').eq('id', chatPartnerId).single();
+        const { data: prf } = await sb.from('profiles_public').select('display_name').eq('id', chatPartnerId).single();
         chatPartnerName = prf?.display_name || 'Заказчик';
       }
 
@@ -1910,51 +1908,24 @@
       const btn = document.getElementById('btn-submit-review');
       if (btn) { btn.disabled = true; }
 
-      // 1. статус задания → done
-      await sb.from('tasks').update({ status: 'done' }).eq('id', currentTask.id);
-      currentTask.status = 'done';
+      // вся логика (смена статуса, пересчёт рейтинга исполнителя, сохранение отзыва)
+      // выполняется атомарно на сервере — клиенту нельзя доверять прямую запись в чужой профиль
+      const { error } = await sb.rpc('complete_task_and_review', {
+        p_task_id: currentTask.id,
+        p_stars: stars || null,
+        p_review_text: reviewText || null
+      });
 
-      // 2. находим исполнителя
-      const { data: accepted } = await sb.from('responses')
-        .select('author_id')
-        .eq('task_id', currentTask.id)
-        .eq('status', 'accepted')
-        .limit(1);
-
-      const executorId = accepted?.[0]?.author_id;
-
-      if (executorId && stars) {
-        // 3. пересчитываем рейтинг исполнителя
-        const { data: profile } = await sb.from('profiles')
-          .select('rating, done_count')
-          .eq('id', executorId)
-          .single();
-
-        const oldRating = parseFloat(profile?.rating || 0);
-        const oldCount = parseInt(profile?.done_count || 0);
-        const newCount = oldCount + 1;
-        const newRating = ((oldRating * oldCount) + stars) / newCount;
-
-        await sb.from('profiles').update({
-          rating: Math.round(newRating * 10) / 10,
-          done_count: newCount
-        }).eq('id', executorId);
-
-        // 3b. сохраняем сам отзыв
-        await sb.from('reviews').insert({
-          task_id: currentTask.id,
-          reviewer_id: currentUser.id,
-          reviewee_id: executorId,
-          stars,
-          text: reviewText || null
-        });
-      } else if (executorId) {
-        // завершили без оценки — просто +1 к выполненным
-        const { data: profile } = await sb.from('profiles').select('done_count').eq('id', executorId).single();
-        await sb.from('profiles').update({ done_count: (profile?.done_count || 0) + 1 }).eq('id', executorId);
+      if (error) {
+        console.error('complete_task_and_review error:', error);
+        toast(lang === 'ru' ? 'Не удалось завершить задание' : 'Failed to complete task', true);
+        if (btn) btn.disabled = false;
+        return;
       }
 
-      // 4. обновляем UI
+      currentTask.status = 'done';
+
+      // обновляем UI
       closeReviewModal();
       document.getElementById('d-chat-wrap').style.display = 'none';
 
